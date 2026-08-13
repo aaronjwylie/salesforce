@@ -31,3 +31,6 @@ replay_pid*.log
 
 # Locally installed Postgres/Kafka binaries and their data (ops/local/local-infra.ps1)
 .local/
+
+# IDE-generated output (Eclipse/VS Code Java tooling)
+bin/
