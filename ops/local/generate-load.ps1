@@ -23,14 +23,21 @@
     Roughly how long to spread the traffic over. Default 180. Prometheus scrapes every
     5s, so a few minutes gives the graphs shape rather than a single spike.
 
+.PARAMETER Shape
+    steady  Even spacing. Produces a flat line.
+    wave    Rate rises and falls across the run, with jitter. Looks like real traffic,
+            and exercises the queue at genuinely different depths rather than one.
+
 .EXAMPLE
     .\ops\local\generate-load.ps1
-    .\ops\local\generate-load.ps1 -Orders 200 -SpreadSeconds 300
+    .\ops\local\generate-load.ps1 -Orders 400 -SpreadSeconds 600 -Shape wave
 #>
 param(
     [int]$Orders = 60,
     [int]$Failures = 8,
-    [int]$SpreadSeconds = 180
+    [int]$SpreadSeconds = 180,
+    [ValidateSet('steady', 'wave')]
+    [string]$Shape = 'wave'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -49,11 +56,12 @@ if (-not (Test-Listening 8080)) { throw 'order-sync is not running. Run: .\ops\l
 if (-not (Test-Listening 8081)) { throw 'mock-erp is not running. Run: .\ops\local\run-services.ps1 start' }
 
 $SqlFile  = Join-Path $env:TEMP 'ordersync-load.sql'
+$RunTag   = (Get-Date).ToString('HHmmss')
 $statuses = @('ACTIVATED', 'ACTIVATED', 'ACTIVATED', 'FULFILLED', 'CANCELLED')
 $delayMs  = [int](($SpreadSeconds * 1000) / [Math]::Max($Orders, 1))
 
-Write-Host "==> Pushing $Orders orders over about $SpreadSeconds seconds" -ForegroundColor Cyan
-Write-Host "    one insert per $delayMs ms, plus $Failures deliberate failures" -ForegroundColor DarkGray
+Write-Host "==> Pushing $Orders orders over about $SpreadSeconds seconds ($Shape)" -ForegroundColor Cyan
+Write-Host "    averaging one insert per $delayMs ms, plus $Failures deliberate failures" -ForegroundColor DarkGray
 
 $failureAt = @()
 if ($Failures -gt 0) {
@@ -62,7 +70,10 @@ if ($Failures -gt 0) {
 }
 
 for ($i = 1; $i -le $Orders; $i++) {
-    $orderNumber = 'LOAD-{0:D5}' -f $i
+    # Tagged per run. Without this every run reuses the same order numbers, the ERP
+    # upserts over them, and the order count never grows -- correct idempotent
+    # behaviour, but it hides whether new work is actually arriving.
+    $orderNumber = 'LOAD-{0}-{1:D5}' -f $RunTag, $i
     $eventId     = [guid]::NewGuid().ToString()
     $status      = $statuses[(Get-Random -Maximum $statuses.Count)]
     $amount      = [Math]::Round((Get-Random -Minimum 50 -Maximum 9000) + 0.99, 2)
@@ -104,7 +115,22 @@ INSERT INTO outbox (topic, message_key, payload) VALUES ('orders.v1', '$orderNum
     }
 
     if ($i % 10 -eq 0) { Write-Host "    $i / $Orders" -ForegroundColor DarkGray }
-    Start-Sleep -Milliseconds $delayMs
+
+    if ($Shape -eq 'steady') {
+        Start-Sleep -Milliseconds $delayMs
+    } else {
+        # Two sine waves of different periods plus jitter. A single sine produces a
+        # suspiciously perfect curve; layering an incommensurate second one and some
+        # noise gives the busy-then-quiet texture real traffic has, and pushes the
+        # outbox to genuinely different depths instead of one steady trickle.
+        $t = $i / [double]$Orders
+        $slow = [Math]::Sin($t * 2 * [Math]::PI * 1.5)
+        $fast = [Math]::Sin($t * 2 * [Math]::PI * 4.7)
+        $factor = 1.0 + (0.55 * $slow) + (0.28 * $fast)
+        $factor = [Math]::Max(0.25, $factor)
+        $jitter = (Get-Random -Minimum 80 -Maximum 130) / 100.0
+        Start-Sleep -Milliseconds ([int]($delayMs * $factor * $jitter))
+    }
 }
 
 Write-Host ''

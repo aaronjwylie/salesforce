@@ -10,6 +10,7 @@ import io.micrometer.core.instrument.Timer
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
+import java.time.Duration
 
 /**
  * Consumes canonical order events and pushes them into the ERP.
@@ -30,6 +31,12 @@ class OrderEventConsumer(
     private val forwarded = registry.counter("ordersync.erp.forwarded")
     private val latency = Timer.builder("ordersync.erp.latency")
         .description("Time to push one order into the ERP")
+        // Without this a Timer exports only count, sum and max. The dashboard asks for
+        // a p95, and histogram_quantile needs buckets to compute one — otherwise the
+        // panel reads "No data" and looks broken rather than empty.
+        .publishPercentileHistogram()
+        .minimumExpectedValue(Duration.ofMillis(5))
+        .maximumExpectedValue(Duration.ofSeconds(30))
         .register(registry)
 
     @KafkaListener(

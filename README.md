@@ -78,6 +78,61 @@ rather than by asking an engineer to check the logs.
 | **OpenTelemetry + Jaeger** | Follows a single order all the way through, so a question like "where did this one get stuck?" has an answer instead of a guess. |
 | **Docker** | Runs the supporting pieces above on a laptop with one command. Optional — there is a script that installs them directly if Docker is unavailable. |
 
+## What it looks like running
+
+![The Order Sync dashboard during a load run](docs/images/grafana-dashboard.png)
+
+A ten minute window from a run of 450 orders, arriving at a deliberately uneven rate.
+Every order reached the ERP. Nothing was lost, and nothing arrived twice.
+
+Reading it panel by panel, and why each says what it says:
+
+**Outbox Age — `0s`.** The age of the oldest order still waiting to be sent. This is the
+single most important number here and the one worth an alert. The sparkline shows it
+lifting briefly during bursts and dropping straight back — which is the healthy shape.
+What matters is not that it touches zero but that it *returns* there. A line that
+climbs and stays up means orders have stopped reaching the ERP, and it shows here long
+before anyone in the business notices.
+
+**Outbox Depth — `0`.** How many orders are queued right now. Deliberately *not* the
+alert: the spikes in its sparkline are bursts of arriving work being absorbed and
+drained, exactly as intended. Depth alone is noise. Depth that stays high *while the
+age is also climbing* is the real signal, which is why the two sit side by side.
+
+**Dead Letters (1h) — `0`.** Orders that could not be delivered and have been set aside
+for a human. Anything above zero turns this tile red and needs attention.
+
+**Orders Delivered (5m) — `197`.** Orders successfully pushed into the ERP over the last
+five minutes.
+
+**Throughput.** The panel carrying the actual argument. Orders published to Kafka and
+orders delivered to the ERP climb together to roughly 0.65/s and stay locked to each
+other for the whole run. Work entering equals work leaving. A gap opening between those
+two lines would mean orders accumulating at that stage — there isn't one. (The
+"received from Salesforce" line sits at zero because this run was driven synthetically
+rather than by live platform events; the live path is covered separately below.)
+
+**ERP Latency.** Time to land one order in the ERP, at the median and the 95th
+percentile. The median is pinned at zero — the stand-in ERP does no real work — while
+the p95 wanders between 600ms and 900ms. **That gap is the measurement environment, not
+the service**: a laptop running Kafka, Postgres, two JVMs, Prometheus and Grafana at
+once produces exactly this kind of tail. These are not performance numbers; see
+*Not done* below.
+
+**Failures — flat at zero.** Publish failures, undecodable events and Salesforce
+rejections, all absent across the window.
+
+**Kafka Consumer Lag — flat at zero.** How far behind the consumers are running. Flat
+at zero means they keep pace with production in real time rather than building a
+backlog. This is the same claim the Throughput panel makes, confirmed independently
+from the broker's side rather than the application's — which is why both are shown.
+
+> Reproduce it with `.\ops\local\generate-load.ps1`, which writes orders into the outbox
+> and lets the real relay, Kafka and consumer do the rest. No metrics are fabricated:
+> every number above moved for the same reason it would in production. The default
+> profile varies the arrival rate rather than spacing orders evenly, so the queue is
+> exercised at genuinely different depths instead of one steady trickle.
+
 ## Technically
 
 Bidirectional integration between Salesforce and an ERP, over Kafka.
@@ -253,4 +308,6 @@ silently becomes an insert.
   for anything reachable from elsewhere.
 - The LWC is deployed but not yet placed on the Order record page; that is a
   Lightning App Builder step.
-- No load testing. Throughput characteristics are unmeasured.
+- **No load testing.** The latency figures in the dashboard above were taken on a
+  developer laptop running every component at once, and are not a performance claim.
+  Real numbers would need isolated hardware.

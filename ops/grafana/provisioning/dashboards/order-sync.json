@@ -1,30 +1,48 @@
 {
   "uid": "order-sync",
   "title": "Order Sync",
-  "description": "Salesforce to ERP integration health. The two panels that matter are Outbox Age and DLQ Rate.",
+  "description": "Salesforce to ERP integration health. Outbox Age is the panel worth alerting on.",
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 3,
   "refresh": "10s",
-  "time": { "from": "now-1h", "to": "now" },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
   "panels": [
     {
       "id": 1,
       "type": "stat",
       "title": "Outbox Age",
       "description": "Age of the oldest undrained row. Rising means the relay has stopped making progress and orders are not reaching the ERP. This is the alert.",
-      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "s",
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "orange", "value": 30 },
-              { "color": "red", "value": 120 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 30
+              },
+              {
+                "color": "red",
+                "value": 120
+              }
             ]
-          }
+          },
+          "noValue": "0"
         }
       },
       "targets": [
@@ -40,10 +58,33 @@
       "type": "stat",
       "title": "Outbox Depth",
       "description": "Rows waiting. Spikes are normal under load; a plateau is not.",
-      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
-      "fieldConfig": { "defaults": { "unit": "short" } },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
       "targets": [
-        { "expr": "ordersync_outbox_depth", "legendFormat": "queued", "refId": "A" }
+        {
+          "expr": "ordersync_outbox_depth",
+          "legendFormat": "queued",
+          "refId": "A"
+        }
       ]
     },
     {
@@ -51,22 +92,34 @@
       "type": "stat",
       "title": "Dead Letters (1h)",
       "description": "Messages parked because they could not be delivered. Any non-zero value needs a human.",
-      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "short",
+          "noValue": "0",
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 1 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
             ]
           }
         }
       },
       "targets": [
         {
-          "expr": "sum(increase(ordersync_consumer_dead_lettered_total[1h])) + sum(increase(ordersync_outbox_dead_lettered_total[1h]))",
+          "expr": "(sum(increase(ordersync_consumer_dead_lettered_total[1h])) or vector(0)) + (sum(increase(ordersync_outbox_dead_lettered_total[1h])) or vector(0))",
           "legendFormat": "dead lettered",
           "refId": "A"
         }
@@ -75,14 +128,33 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Events Received (5m)",
-      "description": "Platform events pulled from the Salesforce stream.",
-      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
-      "fieldConfig": { "defaults": { "unit": "short" } },
+      "title": "Orders Delivered (5m)",
+      "description": "Orders successfully pushed into the ERP.",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
       "targets": [
         {
-          "expr": "sum(increase(ordersync_salesforce_events_received_total[5m]))",
-          "legendFormat": "events",
+          "expr": "sum(increase(ordersync_erp_forwarded_total[5m])) or vector(0)",
+          "legendFormat": "orders",
           "refId": "A"
         }
       ]
@@ -92,8 +164,20 @@
       "type": "timeseries",
       "title": "Throughput",
       "description": "Events in from Salesforce against orders out to the ERP. A persistent gap means work is accumulating somewhere in between.",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
-      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 8 } } },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 8
+          }
+        }
+      },
       "targets": [
         {
           "expr": "rate(ordersync_salesforce_events_received_total[5m])",
@@ -117,8 +201,20 @@
       "type": "timeseries",
       "title": "ERP Latency",
       "description": "Time to push one order into the ERP.",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
-      "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 0 } } },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 0
+          }
+        }
+      },
       "targets": [
         {
           "expr": "histogram_quantile(0.95, sum(rate(ordersync_erp_latency_seconds_bucket[5m])) by (le))",
@@ -137,8 +233,20 @@
       "type": "timeseries",
       "title": "Failures",
       "description": "Publish failures, undecodable events, and Salesforce write rejections.",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
-      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 8 } } },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 8
+          }
+        }
+      },
       "targets": [
         {
           "expr": "rate(ordersync_outbox_failed_total[5m])",
@@ -162,8 +270,20 @@
       "type": "timeseries",
       "title": "Kafka Consumer Lag",
       "description": "Records behind the head of each partition.",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
-      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 8 } } },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 8
+          }
+        }
+      },
       "targets": [
         {
           "expr": "sum(kafka_consumer_fetch_manager_records_lag) by (client_id)",
