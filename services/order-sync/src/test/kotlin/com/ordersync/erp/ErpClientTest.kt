@@ -54,6 +54,7 @@ class ErpClientTest {
     private fun anOrderEvent(status: OrderStatus = OrderStatus.ACTIVATED) = OrderEvent(
         eventId = "evt-1",
         orderNumber = "SO-1001",
+        salesforceOrderId = "8010X00000AbCdEQAV",
         accountExternalId = "ACCT-42",
         status = status,
         totalAmount = BigDecimal("2500.00"),

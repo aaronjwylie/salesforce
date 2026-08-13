@@ -61,6 +61,53 @@ class SalesforceCompositeClient(
     fun upsertFulfillment(events: List<FulfillmentEvent>): List<UpsertResult> =
         events.chunked(MAX_RECORDS_PER_CALL).flatMap { chunk -> upsertChunk(chunk, retryOnAuthFailure = true) }
 
+    /**
+     * Records the id the ERP assigned, against the Salesforce record id.
+     *
+     * This is what makes the return path possible. Fulfillment updates upsert on
+     * `ERP_Order_Id__c`; until that field holds a value, no record matches and
+     * Salesforce interprets the upsert as an insert — which fails on the required
+     * AccountId with a message about selecting an account, some distance from the
+     * actual cause.
+     *
+     * Updates by record id rather than upserting by external id, precisely because the
+     * external id is what is missing at this point.
+     */
+    fun linkErpOrders(links: Map<String, String>): List<UpsertResult> {
+        if (links.isEmpty()) return emptyList()
+
+        return links.entries.chunked(MAX_RECORDS_PER_CALL).flatMap { chunk ->
+            val session = auth.current()
+            val body = mapOf(
+                "allOrNone" to false,
+                "records" to chunk.map { (salesforceOrderId, erpOrderId) ->
+                    mapOf(
+                        "attributes" to mapOf("type" to "Order"),
+                        "id" to salesforceOrderId,
+                        "ERP_Order_Id__c" to erpOrderId,
+                    )
+                },
+            )
+
+            val results = restClient.patch()
+                .uri("${session.instanceUrl}/services/data/$API_VERSION/composite/sobjects")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer ${session.accessToken}")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(object : ParameterizedTypeReference<List<UpsertResult>>() {})
+                ?: emptyList()
+
+            results.filterNot { it.success }.forEach { failure ->
+                log.error(
+                    "Could not record the ERP id against the Salesforce order: {}",
+                    failure.errors.joinToString { "${it.statusCode} ${it.message}" },
+                )
+            }
+            results
+        }
+    }
+
     private fun upsertChunk(events: List<FulfillmentEvent>, retryOnAuthFailure: Boolean): List<UpsertResult> {
         val session = auth.current()
         val body = mapOf(

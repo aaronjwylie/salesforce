@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.ordersync.domain.OrderEvent
 import com.ordersync.erp.ErpClient
 import com.ordersync.erp.ErpOrderRequest
+import com.ordersync.salesforce.SalesforceCompositeClient
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Timer
 import org.slf4j.LoggerFactory
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Component
 @Component
 class OrderEventConsumer(
     private val erp: ErpClient,
+    private val salesforce: SalesforceCompositeClient,
     private val objectMapper: ObjectMapper,
     registry: MeterRegistry,
 ) {
@@ -43,5 +45,18 @@ class OrderEventConsumer(
 
         forwarded.increment()
         log.info("Order {} is {} in the ERP", event.orderNumber, response.erpOrderId)
+
+        // Close the loop: without the ERP's id on the Salesforce record, fulfillment
+        // updates coming the other way have nothing to match on. Deliberately outside
+        // the failure path above — if this write fails the order still reached the ERP,
+        // and retrying the whole message would send it a second time.
+        runCatching {
+            salesforce.linkErpOrders(mapOf(event.salesforceOrderId to response.erpOrderId))
+        }.onFailure {
+            log.error(
+                "Order {} reached the ERP as {} but the id could not be written back: {}",
+                event.orderNumber, response.erpOrderId, it.message,
+            )
+        }
     }
 }

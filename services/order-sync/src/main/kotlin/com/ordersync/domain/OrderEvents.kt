@@ -47,6 +47,12 @@ enum class OrderStatus {
 data class OrderEvent(
     val eventId: String,
     val orderNumber: String,
+    /**
+     * The Salesforce record id. Carried so the ERP's assigned id can be written back
+     * against the right record — without it the two systems have no shared key and the
+     * return path cannot find the order it is trying to update.
+     */
+    val salesforceOrderId: String,
     val accountExternalId: String,
     val status: OrderStatus,
     val totalAmount: BigDecimal,
@@ -57,6 +63,7 @@ data class OrderEvent(
         fun from(change: SalesforceOrderChange) = OrderEvent(
             eventId = change.eventId,
             orderNumber = change.orderNumber,
+            salesforceOrderId = change.orderId,
             accountExternalId = change.accountExternalId,
             status = change.status,
             totalAmount = change.totalAmount,

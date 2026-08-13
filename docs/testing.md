@@ -50,10 +50,20 @@ Wanted: a body containing `access_token`. See
 
 ### Start the services
 
-```bash
-./gradlew :services:mock-erp:bootRun &
-./gradlew :services:order-sync:bootRun
+```powershell
+.\ops\local\run-services.ps1 start    # builds the jars if missing, starts both
+.\ops\local\run-services.ps1 logs     # tail order-sync
+.\ops\local\run-services.ps1 stop
 ```
+
+This runs the jars with `java` directly. `gradlew bootRun` also works, but it holds a
+Gradle daemon open for the life of the service, which is around a gigabyte.
+
+> **Build and run are not simultaneous on a memory-constrained machine.** Kafka,
+> Postgres and two Spring services leave little room, and the Gradle daemon will fail
+> to start with *"The paging file is too small for this operation to complete"*. Stop
+> the services, build, then start them again. The same applies to the `sf` CLI, which
+> is a Node process that will crash rather than degrade.
 
 Healthy startup looks like:
 

@@ -33,6 +33,51 @@ reached the warehouse, what its shipping status is, and a button to send it agai
 the question "did that actually go through?" gets answered where people already work,
 rather than by asking an engineer to check the logs.
 
+## What each piece of technology is doing here
+
+**Building the service**
+
+| | What it is for |
+| --- | --- |
+| **Kotlin** | The language the service is written in. Chosen over Java mainly because its type system distinguishes "this value might be missing" from "this value is always there", and the compiler refuses to let you forget the difference — which caught a real bug in this project before it ever ran. |
+| **Spring Boot** | The scaffolding underneath: it starts the application, reads configuration, exposes the web endpoints, and connects the pieces together so that code does not have to be written by hand. |
+| **Gradle** | Turns the source code into something runnable, and fetches the libraries it depends on. |
+
+**Moving the messages**
+
+| | What it is for |
+| --- | --- |
+| **Apache Kafka** | The queue in the middle. When the warehouse is unavailable, orders wait here rather than being lost, and go through when it returns. It also lets the two halves run at their own speed instead of one waiting on the other. |
+| **PostgreSQL** | The service's memory. It records which announcements have already been handled, so nothing is processed twice, and holds outgoing messages until they are safely delivered. |
+| **Flyway** | Creates and updates those database tables automatically on startup, so nobody has to run scripts by hand. |
+
+**Talking to Salesforce**
+
+| | What it is for |
+| --- | --- |
+| **Salesforce Pub/Sub API** | How Salesforce announces that something changed. The service listens on a permanently open connection rather than repeatedly asking "anything new?", and can resume from where it left off after a restart. |
+| **Apex + Platform Events** | Code that runs inside Salesforce itself. When an order is activated, this is what publishes the announcement the service is listening for. |
+| **Salesforce REST / Composite API** | The way back in. Updates are sent in batches of up to 200, because Salesforce limits how many times per day anything may call it — a limit a naive integration exhausts by mid-afternoon. |
+| **Lightning Web Component** | The small panel on the order screen showing whether an order reached the warehouse, so a salesperson can check without asking an engineer. |
+
+**Proving it works**
+
+| | What it is for |
+| --- | --- |
+| **Cucumber** | Tests written as plain English scenarios — "a redelivered event is forwarded only once" — that non-developers can read and check for themselves. |
+| **JUnit, Kotest, MockK** | The ordinary unit tests underneath those scenarios. |
+| **Testcontainers** | Runs a genuine database and a genuine Kafka during testing, rather than pretend versions. Some behaviour only shows up against the real thing. |
+| **WireMock** | A stand-in Salesforce and warehouse that can be told to fail on demand, so the recovery behaviour can be tested without breaking anything real. |
+| **GitHub Actions** | Runs the whole test suite automatically on every change, on a clean machine. |
+
+**Watching it run**
+
+| | What it is for |
+| --- | --- |
+| **Prometheus + Grafana** | Collects and graphs the numbers that matter — how many orders are waiting, how long the oldest one has waited, what is failing. The second of those is the one worth an alert. |
+| **OpenTelemetry + Jaeger** | Follows a single order all the way through, so a question like "where did this one get stuck?" has an answer instead of a guess. |
+| **Docker** | Runs the supporting pieces above on a laptop with one command. Optional — there is a script that installs them directly if Docker is unavailable. |
+
 ## Technically
 
 Bidirectional integration between Salesforce and an ERP, over Kafka.
@@ -98,10 +143,14 @@ Kafka natively instead:
 
 ```powershell
 .\ops\local\local-infra.ps1 install   # one time, ~3 min
-.\ops\local\local-infra.ps1 start     # Postgres on 5432, Kafka on 9092, topics created
-.\ops\local\local-infra.ps1 status
-.\ops\local\local-infra.ps1 stop
+.\ops\local\local-infra.ps1 start     # Postgres on 5433, Kafka on 9092, topics created
+.\ops\local\run-services.ps1 start    # both Spring services, from jars
+.\ops\local\run-services.ps1 logs     # tail order-sync
 ```
+
+Postgres runs on **5433**, not the default, so it cannot collide with a PostgreSQL
+already installed on the machine. Set `DB_URL=jdbc:postgresql://localhost:5433/ordersync`
+in `.env` to match.
 
 Everything lands in a gitignored `.local/`. No administrator rights, no installer, no
 Windows services — deleting `.local/` undoes it completely. It also uses noticeably less
@@ -177,11 +226,31 @@ adapters get their own contract tests against real infrastructure.
 | 8 | Reconciliation job for expired replay windows |
 | 9 | LWC integration status panel |
 
+### Verified against a live org
+
+Both directions have run end to end against a real Developer Edition org:
+
+```
+Fetching Avro schema b-kI41QbXxY_7Nmduhsn_g
+Published order 00000101 in status ACTIVATED
+Order 00000101 is ERP-1 in the ERP
+Applied 1 of 1 fulfillment updates
+```
+
+Salesforce → gRPC subscription → Avro decode → outbox → Kafka → ERP, and the return
+leg back into Salesforce via the Composite API. The Apex package deploys clean with 13
+tests passing at 93% org-wide coverage.
+
+That exercise earned its keep. It found a defect no test would have caught, because
+every test mocks one side: nothing wrote the ERP's identifier back into Salesforce, so
+the two systems shared no key, and every fulfillment update failed with
+`REQUIRED_FIELD_MISSING: Select an account` — an upsert with nothing to match on
+silently becomes an insert.
+
 ### Not done
 
-- **The live Pub/Sub path has never been run against a real org.** The gRPC client,
-  Avro decoding and replay resume are written and compile against Salesforce's
-  published proto, but every test of that layer is offline. Treat slice 5 as unverified
-  until it has streamed one real event.
-- No authentication on the `/admin` endpoints. Fine for a demo stack, not for anything else.
-- The Apex and LWC have not been deployed to an org, so their tests are unrun.
+- No authentication on the `/admin` endpoints. Fine for a demo stack on localhost, not
+  for anything reachable from elsewhere.
+- The LWC is deployed but not yet placed on the Order record page; that is a
+  Lightning App Builder step.
+- No load testing. Throughput characteristics are unmeasured.
