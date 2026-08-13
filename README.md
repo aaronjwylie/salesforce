@@ -82,24 +82,36 @@ rather than by asking an engineer to check the logs.
 
 ### Where it starts: a salesperson, in Salesforce
 
-![An order in Salesforce, still a draft](docs/images/salesforce-dashboard.png)
+![An activated order in Salesforce, showing it reached the ERP](docs/images/salesforce-dashboard.png)
 
-An order for Northwind Traders — six Widgets, $1,500 — sitting in **Draft**. Draft means
-the sales rep is still working on it, and deliberately nothing has been sent anywhere:
-the warehouse has no idea this order exists, and should not, because a draft may still
-be changed or abandoned.
+An order for Northwind Traders — six Widgets, $1,500 — moments after the rep clicked it
+from **Draft** to **Activated**. That single click is the entire trigger for everything
+else in this project. Nobody filled in a second system, pressed a sync button, or told
+the warehouse.
 
-The bar across the middle is the only thing that matters. When the rep clicks through
-from **Draft** to **Activated**, that single click is the entire trigger for everything
-else in this project. They do not fill in a second system, press a sync button, or tell
-anyone. Within a second or two the order is in the warehouse system, and the rep never
-knows Kafka exists.
+The **Integration Status** panel on the right is the only part of this page that knows
+an integration exists. It reports that the warehouse has the order and calls it
+**ERP-581**, and that this was true as of 3:31pm. If it had not arrived, that badge
+would say so, and the **Retry sync** button beside it lets the rep resend without
+raising a ticket.
 
-That is the whole design goal, stated as a screenshot: the integration is invisible from
-here. The only place it becomes visible is the optional **Integration Status** panel
-([an LWC](salesforce/force-app/main/default/lwc/orderIntegrationStatus/)) that can be
-dropped onto this page, which answers "did that actually go through?" without anyone
-having to ask an engineer.
+Everything between those two facts — the click and the badge — took **156 milliseconds**:
+
+```
+15:31:30.210  Published order 00000102 in status ACTIVATED
+15:31:30.273  Sending order 00000102 to the ERP
+15:31:30.366  Order 00000102 is ERP-581 in the ERP
+```
+
+For the rep, though, the interesting number is that they never had to know any of it
+happened. A well-behaved integration is one nobody notices, and the panel exists only
+because "did that actually go through?" is a question people will ask regardless — it is
+better answered on the screen they already work in than by an engineer reading logs.
+
+> The panel reads the record through Lightning Data Service rather than a server call.
+> An earlier version queried Apex and confidently displayed "this order is still a
+> draft" on a page whose own header read *Activated* — a `@wire` to Apex only re-runs
+> when its arguments change, and the record id does not change when the record does.
 
 ### What happens behind it
 
