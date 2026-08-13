@@ -1,0 +1,69 @@
+[versions]
+kotlin = "1.9.25"
+springBoot = "3.3.5"
+springDependencyManagement = "1.1.6"
+cucumber = "7.20.1"
+kotest = "5.9.1"
+testcontainers = "1.20.4"
+mockk = "1.13.13"
+awaitility = "4.2.2"
+wiremock = "3.9.2"
+junit = "5.10.5"
+protobuf = "3.25.5"
+protobufPlugin = "0.9.4"
+grpc = "1.68.1"
+avro = "1.11.4"
+
+[libraries]
+# --- production ---
+spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
+spring-boot-starter-webflux = { module = "org.springframework.boot:spring-boot-starter-webflux" }
+spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
+spring-boot-starter-jdbc = { module = "org.springframework.boot:spring-boot-starter-jdbc" }
+spring-kafka = { module = "org.springframework.kafka:spring-kafka" }
+jackson-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
+kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
+flyway-core = { module = "org.flywaydb:flyway-core" }
+flyway-postgres = { module = "org.flywaydb:flyway-database-postgresql" }
+postgresql = { module = "org.postgresql:postgresql" }
+micrometer-prometheus = { module = "io.micrometer:micrometer-registry-prometheus" }
+micrometer-tracing-bridge-otel = { module = "io.micrometer:micrometer-tracing-bridge-otel" }
+otel-exporter-otlp = { module = "io.opentelemetry:opentelemetry-exporter-otlp" }
+resilience4j-spring-boot3 = { module = "io.github.resilience4j:resilience4j-spring-boot3", version = "2.2.0" }
+# Pooled HTTP/1.1 client. Also avoids the JDK client's h2c upgrade attempt, which some
+# servers (WireMock among them) abort the connection over.
+httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5" }
+
+# --- Salesforce Pub/Sub API (gRPC + Avro) ---
+grpc-netty-shaded = { module = "io.grpc:grpc-netty-shaded", version.ref = "grpc" }
+grpc-protobuf = { module = "io.grpc:grpc-protobuf", version.ref = "grpc" }
+grpc-stub = { module = "io.grpc:grpc-stub", version.ref = "grpc" }
+protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
+avro = { module = "org.apache.avro:avro", version.ref = "avro" }
+# protoc-gen-grpc-java still emits @javax.annotation.Generated, which is not on the
+# JDK 17 classpath. compileOnly is enough — it is not needed at runtime.
+tomcat-annotations = { module = "org.apache.tomcat:annotations-api", version = "6.0.53" }
+
+# --- test ---
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+spring-kafka-test = { module = "org.springframework.kafka:spring-kafka-test" }
+kotest-assertions = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+awaitility = { module = "org.awaitility:awaitility-kotlin", version.ref = "awaitility" }
+cucumber-java = { module = "io.cucumber:cucumber-java", version.ref = "cucumber" }
+cucumber-junit-platform = { module = "io.cucumber:cucumber-junit-platform-engine", version.ref = "cucumber" }
+cucumber-spring = { module = "io.cucumber:cucumber-spring", version.ref = "cucumber" }
+junit-platform-suite = { module = "org.junit.platform:junit-platform-suite", version = "1.10.5" }
+testcontainers-junit = { module = "org.testcontainers:junit-jupiter", version.ref = "testcontainers" }
+testcontainers-kafka = { module = "org.testcontainers:kafka", version.ref = "testcontainers" }
+testcontainers-postgres = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
+wiremock = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+kotlin-jpa = { id = "org.jetbrains.kotlin.plugin.jpa", version.ref = "kotlin" }
+spring-boot = { id = "org.springframework.boot", version.ref = "springBoot" }
+spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "springDependencyManagement" }
+protobuf = { id = "com.google.protobuf", version.ref = "protobufPlugin" }

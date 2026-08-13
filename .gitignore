@@ -1,0 +1,33 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+!.vscode/extensions.json
+
+# Salesforce
+.sfdx/
+.sf/
+.localdevserver/
+salesforce/**/main/default/**/*.log
+
+# Local secrets — never commit a Connected App's credentials
+.env
+*.key
+server.crt
+
+# OS / logs
+*.log
+.DS_Store
+Thumbs.db
+
+# JVM crash dumps
+hs_err_pid*.log
+replay_pid*.log
+
+# Locally installed Postgres/Kafka binaries and their data (ops/local/local-infra.ps1)
+.local/
