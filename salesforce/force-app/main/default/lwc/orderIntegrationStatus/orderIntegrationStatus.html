@@ -1,0 +1,55 @@
+<template>
+    <lightning-card title="Integration Status" icon-name="standard:sync">
+        <div class="slds-var-m-around_medium">
+            <template if:true={loading}>
+                <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+            </template>
+
+            <template if:true={error}>
+                <p class="slds-text-color_error">{error}</p>
+            </template>
+
+            <template if:true={status}>
+                <template if:false={status.eligible}>
+                    <p class="slds-text-color_weak">
+                        This order is still a draft. It will be sent to the ERP when it is activated.
+                    </p>
+                </template>
+
+                <template if:true={status.eligible}>
+                    <dl class="slds-dl_horizontal">
+                        <dt class="slds-dl_horizontal__label">ERP Order</dt>
+                        <dd class="slds-dl_horizontal__detail">
+                            <template if:true={status.reachedErp}>{status.erpOrderId}</template>
+                            <template if:false={status.reachedErp}>
+                                <span class="slds-text-color_weak">not yet received</span>
+                            </template>
+                        </dd>
+
+                        <dt class="slds-dl_horizontal__label">Status</dt>
+                        <dd class="slds-dl_horizontal__detail">
+                            <lightning-badge label={fulfillmentLabel} class={badgeClass}></lightning-badge>
+                        </dd>
+
+                        <dt class="slds-dl_horizontal__label">Last updated</dt>
+                        <dd class="slds-dl_horizontal__detail">
+                            <lightning-formatted-date-time
+                                value={status.lastModified}
+                                year="numeric" month="short" day="2-digit"
+                                hour="2-digit" minute="2-digit">
+                            </lightning-formatted-date-time>
+                        </dd>
+                    </dl>
+
+                    <div class="slds-var-m-top_medium">
+                        <lightning-button
+                            label="Retry sync"
+                            onclick={handleRetry}
+                            disabled={retrying}>
+                        </lightning-button>
+                    </div>
+                </template>
+            </template>
+        </div>
+    </lightning-card>
+</template>

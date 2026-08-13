@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <!--
+      Why this exists: custom fields deploy with no field-level security granted to
+      anyone, administrators included. Until FLS is granted, a USER_MODE query or a
+      REST call reports the field as "No such column" rather than as a permissions
+      problem, which is a confusing way to spend an afternoon.
+
+      Assign it with "sf org assign permset" to any user who runs the integration or
+      views the Integration Status panel.
+    -->
+    <label>Order Sync Integration</label>
+    <description>Field and class access for the Salesforce/ERP order integration.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Account.External_Id__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Order.ERP_Order_Id__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Order.Fulfillment_Status__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+
+    <classAccesses>
+        <apexClass>OrderChangePublisher</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+
+    <classAccesses>
+        <apexClass>OrderIntegrationStatusController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+</PermissionSet>

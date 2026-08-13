@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Published when an Order changes in a way the ERP needs to know about. Consumed by the order-sync service over the Pub/Sub API.</description>
+    <eventType>HighVolume</eventType>
+    <label>Order Change</label>
+    <pluralLabel>Order Changes</pluralLabel>
+    <publishBehavior>PublishAfterCommit</publishBehavior>
+</CustomObject>
