@@ -102,11 +102,23 @@ Put them in a `.env` at the repo root — it is gitignored, and these are live
 credentials to a real org:
 
 ```bash
-SF_LOGIN_URL=https://login.salesforce.com
+# Your org's My Domain URL, NOT login.salesforce.com. See the warning below.
+SF_LOGIN_URL=https://orgfarm-xxxxxxxx-dev-ed.develop.my.salesforce.com
 SF_CLIENT_ID=3MVG9...
 SF_CLIENT_SECRET=1A2B3C...
-SF_ORG_ID=00Dxx0000000000EAA
+SF_ORG_ID=
+SF_ENABLED=true
 ```
+
+> **The client credentials flow does not work against `login.salesforce.com`.** It must
+> be requested against the org's My Domain URL, or Salesforce returns
+> `invalid_grant: request not supported on this domain` — which sounds like a
+> credentials problem and is not one. Get the URL from
+> `sf org display --target-org ordersync-dev` (the `instanceUrl` field).
+
+`SF_ORG_ID` can be left blank; the service derives the 18-character form from the token
+response, which is what the Pub/Sub API's `tenantid` header requires. The 15-character
+id shown in Setup → Company Information will not work.
 
 The Pub/Sub endpoint (`api.pubsub.salesforce.com:7443`) is the same for every org and is
 already in `application.yml`.
@@ -133,8 +145,18 @@ with a Start Date and Status *Draft*. Activating it is what fires the platform e
 curl -s -X POST "$SF_LOGIN_URL/services/oauth2/token" \
   -d grant_type=client_credentials \
   -d client_id="$SF_CLIENT_ID" \
-  -d client_secret="$SF_CLIENT_SECRET" | jq
+  -d client_secret="$SF_CLIENT_SECRET"
 ```
 
-A JSON body with `access_token` and `instance_url` means the org side is done. Anything
-else is a step 3 problem, not a code problem.
+A body containing `access_token` and `instance_url` means the org side is done. The
+response holds a live token, so do not paste it anywhere.
+
+The three failures worth recognising, because none of them say what they mean:
+
+| Response | Actual cause |
+| --- | --- |
+| `invalid_grant: request not supported on this domain` | `SF_LOGIN_URL` is `login.salesforce.com`. Use the My Domain URL. |
+| `invalid_app_access: user is not admin approved to access this app` | The app's Permitted Users policy. Set it to *All users may self-authorize*, or pre-authorize and assign the app to a permission set. |
+| `invalid_grant` with no description | No Run As user on the client credentials flow. |
+
+Give any change 2–10 minutes to propagate before concluding it did not work.
