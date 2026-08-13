@@ -80,10 +80,34 @@ rather than by asking an engineer to check the logs.
 
 ## What it looks like running
 
+### Where it starts: a salesperson, in Salesforce
+
+![An order in Salesforce, still a draft](docs/images/salesforce-dashboard.png)
+
+An order for Northwind Traders — six Widgets, $1,500 — sitting in **Draft**. Draft means
+the sales rep is still working on it, and deliberately nothing has been sent anywhere:
+the warehouse has no idea this order exists, and should not, because a draft may still
+be changed or abandoned.
+
+The bar across the middle is the only thing that matters. When the rep clicks through
+from **Draft** to **Activated**, that single click is the entire trigger for everything
+else in this project. They do not fill in a second system, press a sync button, or tell
+anyone. Within a second or two the order is in the warehouse system, and the rep never
+knows Kafka exists.
+
+That is the whole design goal, stated as a screenshot: the integration is invisible from
+here. The only place it becomes visible is the optional **Integration Status** panel
+([an LWC](salesforce/force-app/main/default/lwc/orderIntegrationStatus/)) that can be
+dropped onto this page, which answers "did that actually go through?" without anyone
+having to ask an engineer.
+
+### What happens behind it
+
 ![The Order Sync dashboard during a load run](docs/images/grafana-dashboard.png)
 
-A ten minute window from a run of 450 orders, arriving at a deliberately uneven rate.
-Every order reached the ERP. Nothing was lost, and nothing arrived twice.
+The same journey, seen from the machinery — a ten minute window from a run of 450
+orders, arriving at a deliberately uneven rate. Every order reached the ERP. Nothing was
+lost, and nothing arrived twice.
 
 Reading it panel by panel, and why each says what it says:
 
