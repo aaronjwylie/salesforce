@@ -1,5 +1,40 @@
 # sf-order-sync
 
+## In plain language
+
+A sales rep closes a deal in Salesforce and activates the order. Somewhere else in the
+company sits the warehouse system, which needs to know about that order so someone can
+pick the items off a shelf and ship them. When the parcel goes out, Salesforce needs to
+hear about it too, so the rep can answer "where is my order?" without phoning the
+warehouse.
+
+The two systems cannot talk to each other directly. Salesforce is a cloud product with
+strict limits on how often anything may call it; the warehouse system lives inside the
+corporate network and is not reachable from outside. **This project is the piece in the
+middle that carries the news both ways.**
+
+Sending a message is the easy part. Almost all of this code exists for the moments when
+something goes wrong:
+
+- **The warehouse system is down for ten minutes.** Orders raised during that window
+  cannot simply evaporate. They queue up and go through when it comes back.
+- **Salesforce announces the same order twice.** It genuinely does this — the guarantee
+  is "at least once", not "exactly once". The warehouse must not end up shipping two.
+- **This service is restarted halfway through.** It has to resume from exactly where it
+  stopped, without skipping orders or replaying ones already handled.
+- **One order arrives malformed.** It must be set aside for a human, not left to block
+  the hundred perfectly good orders queued behind it.
+- **The service is offline all weekend.** Salesforce only remembers announcements for
+  three days, so a separate nightly job goes and asks directly: "what changed while I
+  was away?"
+
+There is also a small panel on the Salesforce order screen showing whether an order
+reached the warehouse, what its shipping status is, and a button to send it again — so
+the question "did that actually go through?" gets answered where people already work,
+rather than by asking an engineer to check the logs.
+
+## Technically
+
 Bidirectional integration between Salesforce and an ERP, over Kafka.
 
 Salesforce owns Orders. The ERP owns fulfillment. Neither calls the other: a Kotlin /
