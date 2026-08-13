@@ -1,0 +1,20 @@
+# Normalise to LF in the repository; check out native on Windows.
+* text=auto
+
+# These are executed by a shell. CRLF endings make them fail on Linux with an
+# opaque "bad interpreter" error, which is exactly what CI runs.
+gradlew            text eol=lf
+*.sh               text eol=lf
+ops/docker/*       text eol=lf
+
+# Windows-only, and cmd.exe wants CRLF.
+gradlew.bat        text eol=crlf
+*.ps1              text eol=crlf
+
+# Never touch these.
+*.jar              binary
+*.png              binary
+*.zip              binary
+
+# Keeps generated protobuf/gRPC sources out of language statistics and diffs.
+services/order-sync/src/main/proto/pubsub_api.proto linguist-vendored
