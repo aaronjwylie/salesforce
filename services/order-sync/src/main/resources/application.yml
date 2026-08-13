@@ -1,0 +1,80 @@
+spring:
+  application:
+    name: order-sync
+  config:
+    # Reads a gitignored .env at the repo root, so Salesforce credentials never have to
+    # be exported by hand or committed. Optional: the service starts fine without it.
+    import:
+      - optional:file:./.env[.properties]
+      - optional:file:../../.env[.properties]
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ordersync}
+    username: ${DB_USER:ordersync}
+    password: ${DB_PASSWORD:ordersync}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+    consumer:
+      group-id: order-sync
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+
+ordersync:
+  topics:
+    orders: orders.v1
+    orders-dlq: orders.v1.DLQ
+    fulfillment: fulfillment.v1
+  erp:
+    base-url: ${ERP_BASE_URL:http://localhost:8081}
+  salesforce:
+    # Populated from a Connected App; never commit real values.
+    login-url: ${SF_LOGIN_URL:https://login.salesforce.com}
+    client-id: ${SF_CLIENT_ID:}
+    client-secret: ${SF_CLIENT_SECRET:}
+    org-id: ${SF_ORG_ID:}
+    pubsub-topic: /event/Order_Change__e
+    # Off by default so the service starts without Salesforce credentials. Turn on
+    # once docs/salesforce-setup.md is done.
+    enabled: ${SF_ENABLED:false}
+  reconciliation:
+    enabled: ${RECONCILIATION_ENABLED:true}
+    cron: "0 30 2 * * *"
+    lookback-hours: 96
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: order-sync
+  tracing:
+    sampling:
+      # 100% locally. In production this would be a few percent plus tail sampling on
+      # errors — the point of the trace here is the demo, not the volume.
+      probability: ${TRACE_SAMPLE_RATE:1.0}
+  otlp:
+    tracing:
+      endpoint: ${OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
+logging:
+  level:
+    com.ordersync: DEBUG
+  pattern:
+    # Trace and span ids in every line, so a log search and a trace view agree.
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
