@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: order-sync
+    metrics_path: /actuator/prometheus
+    static_configs:
+      # host.docker.internal so Prometheus in Docker can scrape the service running
+      # on the host via `gradlew bootRun`.
+      - targets: ["host.docker.internal:8080"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Fast feedback: no Docker, finishes in well under a minute. If this fails there is
+  # no point spending runner time starting containers.
+  fast-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Acceptance, unit and contract tests
+        run: ./gradlew test --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-test-results
+          path: "**/build/reports/tests/test"
+          if-no-files-found: ignore
+
+  integration-tests:
+    needs: fast-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Docker is present on ubuntu-latest, so Testcontainers needs no extra setup.
+      - name: Testcontainers tests
+        run: ./gradlew integrationTest --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results
+          path: "**/build/reports/tests/integrationTest"
+          if-no-files-found: ignore
+
+  apex-tests:
+    runs-on: ubuntu-latest
+    # Needs an org, so it only runs where the auth secret exists.
+    if: ${{ github.event_name == 'push' }}
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Salesforce CLI
+        run: npm install --global @salesforce/cli
+
+      - name: Authenticate
+        env:
+          SF_AUTH_URL: ${{ secrets.SF_AUTH_URL }}
+        run: |
+          if [ -z "$SF_AUTH_URL" ]; then
+            echo "SF_AUTH_URL secret not set; skipping Apex tests."
+            exit 0
+          fi
+          echo "$SF_AUTH_URL" > auth.txt
+          sf org login sfdx-url --sfdx-url-file auth.txt --alias ci
+          rm auth.txt
+
+      - name: Deploy and test
+        env:
+          SF_AUTH_URL: ${{ secrets.SF_AUTH_URL }}
+        run: |
+          if [ -z "$SF_AUTH_URL" ]; then exit 0; fi
+          cd salesforce
+          sf project deploy start --target-org ci --wait 20
+          sf apex run test --target-org ci --code-coverage --result-format human --wait 20
+
+  docker:
+    needs: [fast-tests, integration-tests]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build container image
+        run: ./gradlew :services:order-sync:bootBuildImage
