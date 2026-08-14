@@ -18,7 +18,7 @@ something goes wrong:
 
 - **The warehouse system is down for ten minutes.** Orders raised during that window
   cannot simply evaporate. They queue up and go through when it comes back.
-- **Salesforce announces the same order twice.** It genuinely does this — the guarantee
+- **Salesforce announces the same order twice.** It genuinely does this. The guarantee
   is "at least once", not "exactly once". The warehouse must not end up shipping two.
 - **This service is restarted halfway through.** It has to resume from exactly where it
   stopped, without skipping orders or replaying ones already handled.
@@ -29,7 +29,7 @@ something goes wrong:
   was away?"
 
 There is also a small panel on the Salesforce order screen showing whether an order
-reached the warehouse, what its shipping status is, and a button to send it again — so
+reached the warehouse, what its shipping status is, and a button to send it again, so
 the question "did that actually go through?" gets answered where people already work,
 rather than by asking an engineer to check the logs.
 
@@ -39,7 +39,7 @@ rather than by asking an engineer to check the logs.
 
 | | What it is for |
 | --- | --- |
-| **Kotlin** | The language the service is written in. Chosen over Java mainly because its type system distinguishes "this value might be missing" from "this value is always there", and the compiler refuses to let you forget the difference — which caught a real bug in this project before it ever ran. |
+| **Kotlin** | The language the service is written in. Chosen over Java mainly because its type system distinguishes "this value might be missing" from "this value is always there", and the compiler refuses to let you forget the difference, which caught a real bug in this project before it ever ran. |
 | **Spring Boot** | The scaffolding underneath: it starts the application, reads configuration, exposes the web endpoints, and connects the pieces together so that code does not have to be written by hand. |
 | **Gradle** | Turns the source code into something runnable, and fetches the libraries it depends on. |
 
@@ -57,14 +57,14 @@ rather than by asking an engineer to check the logs.
 | --- | --- |
 | **Salesforce Pub/Sub API** | How Salesforce announces that something changed. The service listens on a permanently open connection rather than repeatedly asking "anything new?", and can resume from where it left off after a restart. |
 | **Apex + Platform Events** | Code that runs inside Salesforce itself. When an order is activated, this is what publishes the announcement the service is listening for. |
-| **Salesforce REST / Composite API** | The way back in. Updates are sent in batches of up to 200, because Salesforce limits how many times per day anything may call it — a limit a naive integration exhausts by mid-afternoon. |
+| **Salesforce REST / Composite API** | The way back in. Updates are sent in batches of up to 200, because Salesforce limits how many times per day anything may call it: a limit a naive integration exhausts by mid-afternoon. |
 | **Lightning Web Component** | The small panel on the order screen showing whether an order reached the warehouse, so a salesperson can check without asking an engineer. |
 
 **Proving it works**
 
 | | What it is for |
 | --- | --- |
-| **Cucumber** | Tests written as plain English scenarios — "a redelivered event is forwarded only once" — that non-developers can read and check for themselves. |
+| **Cucumber** | Tests written as plain English scenarios ("a redelivered event is forwarded only once") that non-developers can read and check for themselves. |
 | **JUnit, Kotest, MockK** | The ordinary unit tests underneath those scenarios. |
 | **Testcontainers** | Runs a genuine database and a genuine Kafka during testing, rather than pretend versions. Some behaviour only shows up against the real thing. |
 | **WireMock** | A stand-in Salesforce and warehouse that can be told to fail on demand, so the recovery behaviour can be tested without breaking anything real. |
@@ -74,9 +74,9 @@ rather than by asking an engineer to check the logs.
 
 | | What it is for |
 | --- | --- |
-| **Prometheus + Grafana** | Collects and graphs the numbers that matter — how many orders are waiting, how long the oldest one has waited, what is failing. The second of those is the one worth an alert. |
+| **Prometheus + Grafana** | Collects and graphs the numbers that matter: how many orders are waiting, how long the oldest one has waited, what is failing. The second of those is the one worth an alert. |
 | **OpenTelemetry + Jaeger** | Follows a single order all the way through, so a question like "where did this one get stuck?" has an answer instead of a guess. |
-| **Docker** | Runs the supporting pieces above on a laptop with one command. Optional — there is a script that installs them directly if Docker is unavailable. |
+| **Docker** | Runs the supporting pieces above on a laptop with one command. Optional, because there is a script that installs them directly if Docker is unavailable. |
 
 ## What it looks like running
 
@@ -84,7 +84,7 @@ rather than by asking an engineer to check the logs.
 
 ![An activated order in Salesforce, showing it reached the ERP](docs/images/salesforce-dashboard.png)
 
-An order for Northwind Traders — six Widgets, $1,500 — moments after the rep clicked it
+An order for Northwind Traders (six Widgets, $1,500) moments after the rep clicked it
 from **Draft** to **Activated**. That single click is the entire trigger for everything
 else in this project. Nobody filled in a second system, pressed a sync button, or told
 the warehouse.
@@ -95,7 +95,7 @@ an integration exists. It reports that the warehouse has the order and calls it
 would say so, and the **Retry sync** button beside it lets the rep resend without
 raising a ticket.
 
-Everything between those two facts — the click and the badge — took **156 milliseconds**:
+Everything between those two facts, the click and the badge, took **156 milliseconds**:
 
 ```
 15:31:30.210  Published order 00000102 in status ACTIVATED
@@ -105,63 +105,63 @@ Everything between those two facts — the click and the badge — took **156 mi
 
 For the rep, though, the interesting number is that they never had to know any of it
 happened. A well-behaved integration is one nobody notices, and the panel exists only
-because "did that actually go through?" is a question people will ask regardless — it is
+because "did that actually go through?" is a question people will ask regardless, and it is
 better answered on the screen they already work in than by an engineer reading logs.
 
 > The panel reads the record through Lightning Data Service rather than a server call.
 > An earlier version queried Apex and confidently displayed "this order is still a
-> draft" on a page whose own header read *Activated* — a `@wire` to Apex only re-runs
+> draft" on a page whose own header read *Activated*. A `@wire` to Apex only re-runs
 > when its arguments change, and the record id does not change when the record does.
 
 ### What happens behind it
 
 ![The Order Sync dashboard during a load run](docs/images/grafana-dashboard.png)
 
-The same journey, seen from the machinery — a ten minute window from a run of 450
+The same journey, seen from the machinery: a ten minute window from a run of 450
 orders, arriving at a deliberately uneven rate. Every order reached the ERP. Nothing was
 lost, and nothing arrived twice.
 
 Reading it panel by panel, and why each says what it says:
 
-**Outbox Age — `0s`.** The age of the oldest order still waiting to be sent. This is the
+**Outbox Age, `0s`.** The age of the oldest order still waiting to be sent. This is the
 single most important number here and the one worth an alert. The sparkline shows it
-lifting briefly during bursts and dropping straight back — which is the healthy shape.
+lifting briefly during bursts and dropping straight back, which is the healthy shape.
 What matters is not that it touches zero but that it *returns* there. A line that
 climbs and stays up means orders have stopped reaching the ERP, and it shows here long
 before anyone in the business notices.
 
-**Outbox Depth — `0`.** How many orders are queued right now. Deliberately *not* the
+**Outbox Depth, `0`.** How many orders are queued right now. Deliberately *not* the
 alert: the spikes in its sparkline are bursts of arriving work being absorbed and
 drained, exactly as intended. Depth alone is noise. Depth that stays high *while the
 age is also climbing* is the real signal, which is why the two sit side by side.
 
-**Dead Letters (1h) — `0`.** Orders that could not be delivered and have been set aside
+**Dead Letters (1h), `0`.** Orders that could not be delivered and have been set aside
 for a human. Anything above zero turns this tile red and needs attention.
 
-**Orders Delivered (5m) — `197`.** Orders successfully pushed into the ERP over the last
+**Orders Delivered (5m), `197`.** Orders successfully pushed into the ERP over the last
 five minutes.
 
 **Throughput.** The panel carrying the actual argument. Orders published to Kafka and
 orders delivered to the ERP climb together to roughly 0.65/s and stay locked to each
 other for the whole run. Work entering equals work leaving. A gap opening between those
-two lines would mean orders accumulating at that stage — there isn't one. (The
+two lines would mean orders accumulating at that stage, and there isn't one. (The
 "received from Salesforce" line sits at zero because this run was driven synthetically
 rather than by live platform events; the live path is covered separately below.)
 
 **ERP Latency.** Time to land one order in the ERP, at the median and the 95th
-percentile. The median is pinned at zero — the stand-in ERP does no real work — while
+percentile. The median is pinned at zero, because the stand-in ERP does no real work, while
 the p95 wanders between 600ms and 900ms. **That gap is the measurement environment, not
 the service**: a laptop running Kafka, Postgres, two JVMs, Prometheus and Grafana at
 once produces exactly this kind of tail. These are not performance numbers; see
 *Not done* below.
 
-**Failures — flat at zero.** Publish failures, undecodable events and Salesforce
+**Failures, flat at zero.** Publish failures, undecodable events and Salesforce
 rejections, all absent across the window.
 
-**Kafka Consumer Lag — flat at zero.** How far behind the consumers are running. Flat
+**Kafka Consumer Lag, flat at zero.** How far behind the consumers are running. Flat
 at zero means they keep pace with production in real time rather than building a
 backlog. This is the same claim the Throughput panel makes, confirmed independently
-from the broker's side rather than the application's — which is why both are shown.
+from the broker's side rather than the application's, which is why both are shown.
 
 > Reproduce it with `.\ops\local\generate-load.ps1`, which writes orders into the outbox
 > and lets the real relay, Kafka and consumer do the rest. No metrics are fabricated:
@@ -175,7 +175,7 @@ Bidirectional integration between Salesforce and an ERP, over Kafka.
 
 Salesforce owns Orders. The ERP owns fulfillment. Neither calls the other: a Kotlin /
 Spring Boot service brokers both directions, dealing with the parts that make this
-genuinely hard — at-least-once delivery, replay after downtime, poison messages, and
+genuinely hard: at-least-once delivery, replay after downtime, poison messages, and
 Salesforce's API governor limits.
 
 Full design in [docs/architecture.md](docs/architecture.md). Org setup in
@@ -184,7 +184,7 @@ Full design in [docs/architecture.md](docs/architecture.md). Org setup in
 ## Layout
 
 ```
-services/order-sync/     Kotlin + Spring Boot — the integration service
+services/order-sync/     Kotlin + Spring Boot, the integration service
 services/mock-erp/       Stand-in for Oracle EBS, so compose has a real HTTP peer
 salesforce/              SFDX package: Order_Change__e, Apex, LWC status panel
 ops/                     Prometheus, Grafana dashboard, Dockerfiles
@@ -194,7 +194,7 @@ docs/                    Architecture, ADRs, org setup
 ## Prerequisites
 
 - JDK 17
-- Docker — for compose and for the Testcontainers-backed tests
+- Docker, for compose and for the Testcontainers-backed tests
 - A Salesforce Developer Edition org, for the live Pub/Sub path
 - The Salesforce CLI, to deploy `salesforce/`:
 
@@ -202,7 +202,7 @@ docs/                    Architecture, ADRs, org setup
   npm install --global @salesforce/cli
   ```
 
-  Note that `sf` commands must be run from inside `salesforce/` — that is where
+  Note that `sf` commands must be run from inside `salesforce/`, because that is where
   `sfdx-project.json` lives, and the CLI resolves the project from the working
   directory.
 
@@ -244,7 +244,7 @@ already installed on the machine. Set `DB_URL=jdbc:postgresql://localhost:5433/o
 in `.env` to match.
 
 Everything lands in a gitignored `.local/`. No administrator rights, no installer, no
-Windows services — deleting `.local/` undoes it completely. It also uses noticeably less
+Windows services. Deleting `.local/` undoes it completely. It also uses noticeably less
 memory than Docker Desktop.
 
 What you give up: Kafka UI, Prometheus, Grafana and Jaeger are not started. Metrics are
@@ -263,7 +263,7 @@ Testcontainers has no substitute. CI runs that job on every push, so it stays co
 | Grafana | http://localhost:3000 (anonymous, dashboard pre-provisioned) |
 | Jaeger | http://localhost:16686 |
 
-The service starts without Salesforce credentials — `ordersync.salesforce.enabled`
+The service starts without Salesforce credentials, because `ordersync.salesforce.enabled`
 defaults to false, so the Kafka and ERP halves run standalone. Set `SF_ENABLED=true`
 once the org is configured.
 
@@ -307,7 +307,7 @@ adapters get their own contract tests against real infrastructure.
 
 | Slice | |
 | --- | --- |
-| 1 | `OrderChangeProcessor` — dedupe, filter, translate, checkpoint |
+| 1 | `OrderChangeProcessor`: dedupe, filter, translate, checkpoint |
 | 2 | Postgres adapters, Flyway migrations, Testcontainers contract tests |
 | 3 | Outbox relay to `orders.v1`, depth and age gauges |
 | 4 | ERP consumer, retry classification, DLQ, replay endpoint |
@@ -335,7 +335,7 @@ tests passing at 93% org-wide coverage.
 That exercise earned its keep. It found a defect no test would have caught, because
 every test mocks one side: nothing wrote the ERP's identifier back into Salesforce, so
 the two systems shared no key, and every fulfillment update failed with
-`REQUIRED_FIELD_MISSING: Select an account` — an upsert with nothing to match on
+`REQUIRED_FIELD_MISSING: Select an account`. An upsert with nothing to match on
 silently becomes an insert.
 
 ### Not done
