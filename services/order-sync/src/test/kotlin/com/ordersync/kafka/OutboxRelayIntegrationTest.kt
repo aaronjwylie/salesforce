@@ -10,6 +10,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.junit.jupiter.api.Test
 import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
+import java.util.UUID
 
 /**
  * Real Postgres, real Kafka. Proves the relay actually moves bytes between them —
@@ -17,7 +18,20 @@ import org.springframework.transaction.support.TransactionTemplate
  */
 class OutboxRelayIntegrationTest : PostgresTestSupport() {
 
-    private val topics = TopicProperties(orders = "orders.v1", ordersDlq = "orders.v1.DLQ")
+    /**
+     * A topic per test method, not a shared `orders.v1`.
+     *
+     * The Kafka container is shared across the suite and topics outlive the test that
+     * created them, so a consumer reading from the beginning sees everything every
+     * earlier test published. Resetting the database between tests is not enough when
+     * the broker keeps its own state. JUnit creates a fresh instance per test method,
+     * so this field is unique per test.
+     */
+    private val topicSuffix = UUID.randomUUID().toString().take(8)
+    private val topics = TopicProperties(
+        orders = "orders.$topicSuffix",
+        ordersDlq = "orders.$topicSuffix.DLQ",
+    )
     private val outbox = OutboxRepository(jdbc)
     private val transactions = TransactionTemplate(DataSourceTransactionManager(dataSource))
 

@@ -49,6 +49,13 @@ val integrationTest = tasks.register<Test>("integrationTest") {
     testClassesDirs = sourceSets["test"].output.classesDirs
     classpath = sourceSets["test"].runtimeClasspath
     useJUnitPlatform { includeTags("integration") }
+
+    // The Cucumber suite is a JUnit Platform @Suite, and tag filtering applies to the
+    // scenarios inside it rather than to the suite class. Discovered here it finds
+    // nothing tagged "integration" and fails outright with NoTestsDiscoveredException
+    // instead of skipping. It belongs to the `test` lane; keep it out of this one.
+    filter { excludeTestsMatching("com.ordersync.acceptance.*") }
+
     shouldRunAfter(tasks.test)
 }
 
