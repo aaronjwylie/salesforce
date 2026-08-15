@@ -1,5 +1,6 @@
 package com.ordersync.persistence
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
@@ -25,6 +26,30 @@ class OutboxRepositoryTest : PostgresTestSupport() {
         claimed[0].topic shouldBe "orders.v1"
         claimed[0].messageKey shouldBe "SO-1001"
         claimed[0].attempts shouldBe 0
+    }
+
+    /**
+     * The outbox must hand back exactly what it was given. It was originally a `jsonb`
+     * column, which parses and re-serializes: the payload came back with whitespace
+     * altered and keys reordered, so the message published to Kafka was not the message
+     * the service produced. Fine until something signs or canonicalises it, and very
+     * hard to spot at that point.
+     */
+    @Test
+    fun `returns the payload byte for byte`() {
+        val payload = """{"zeta":1,"alpha":"two","nested":{"b":false,"a":null},"spaced":  3}"""
+
+        outbox.enqueue("orders.v1", "SO-1001", payload)
+
+        val claimed = transactions.execute { outbox.claimBatch(1) }!!.single()
+        claimed.payload shouldBe payload
+    }
+
+    @Test
+    fun `still refuses a payload that is not json`() {
+        shouldThrow<Exception> {
+            outbox.enqueue("orders.v1", "SO-1001", "definitely not json")
+        }
     }
 
     @Test

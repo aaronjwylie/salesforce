@@ -17,8 +17,11 @@ data class OutboxRecord(
 class OutboxRepository(private val jdbc: JdbcTemplate) {
 
     fun enqueue(topic: String, messageKey: String, payload: String) {
+        // Stored as text, not jsonb. jsonb would re-serialize the payload on the way in,
+        // so what Kafka received would not be what the service produced. A CHECK
+        // constraint still validates that it parses. See V2__outbox_payload_is_exact.sql.
         jdbc.update(
-            "INSERT INTO outbox (topic, message_key, payload) VALUES (?, ?, ?::jsonb)",
+            "INSERT INTO outbox (topic, message_key, payload) VALUES (?, ?, ?)",
             topic,
             messageKey,
             payload,
