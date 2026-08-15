@@ -51,24 +51,32 @@ jobs:
       # so CI is the only place these tests ever execute. Surfacing the failure inline
       # matters more than usual: the alternative is downloading an artifact to find out
       # which assertion broke.
+      # continue-on-error and the trailing exit 0 are both deliberate. A reporting step
+      # that can itself fail will mask the failure it exists to surface, which is
+      # precisely what happened the first time: the loop ended on a grep that found
+      # nothing, returned non-zero under set -e, and took the step down with it.
       - name: Report failures
         if: failure()
+        continue-on-error: true
         run: |
-          echo "## Integration test failures" >> $GITHUB_STEP_SUMMARY
-          for f in services/*/build/test-results/integrationTest/*.xml; do
-            [ -e "$f" ] || continue
-            if grep -q "<failure\|<error" "$f"; then
-              echo "### $(basename "$f" .xml)" >> $GITHUB_STEP_SUMMARY
-              echo '```' >> $GITHUB_STEP_SUMMARY
-              sed -n 's/.*<\(failure\|error\)[^>]*message="\([^"]*\)".*/\2/p' "$f" | head -20 >> $GITHUB_STEP_SUMMARY
-              echo '```' >> $GITHUB_STEP_SUMMARY
-            fi
-          done
-          echo "--- full output ---"
-          for f in services/*/build/test-results/integrationTest/*.xml; do
-            [ -e "$f" ] || continue
-            grep -q "<failure\|<error" "$f" && cat "$f"
-          done
+          set +e
+          echo "## Integration test failures" >> "$GITHUB_STEP_SUMMARY"
+          found=0
+          while IFS= read -r f; do
+            grep -q "<failure\|<error" "$f" || continue
+            found=1
+            echo "### $(basename "$f" .xml)" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            grep -o 'message="[^"]*"' "$f" | head -20 >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "=================== $f ==================="
+            cat "$f"
+          done < <(find . -path "*/build/test-results/integrationTest/*.xml" 2>/dev/null)
+          if [ "$found" = "0" ]; then
+            echo "No test result XML found. The failure was probably before any test ran." \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit 0
 
       - uses: actions/upload-artifact@v4
         if: always()
